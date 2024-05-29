@@ -1,9 +1,8 @@
 from flask import Flask, render_template, redirect, url_for
-import paho.mqtt.client as mqtt
-from flask_mqtt import Mqtt
+import socket
 import uuid
 import requests
-
+import re
 
 
 tankID = None
@@ -15,20 +14,44 @@ app = Flask(__name__)
 
 
 def get_mac_address():
-    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> elements) & 0xff) for elements in range(0, 2*6, 8)][::-1])
+    mac = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
+    print ("my mac: " + mac)
+
     return mac
 
-def register_with_dispatcher():
-    print("connect ##############")
-    mac_address = get_mac_address()
-    print("mac adress : " + mac_address)
 
-    response = requests.post("http://193.55.29.171:5500/connect", 
-    json={"ip_adress": "1.0.0.10", "player_name" : "thiziri"})
+def connect_to_server():
+    print("Connecting to server...")
+    client = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+    client.connect(("00:e9:3a:68:c0:e8", 4))
+    print("Connected to server!")
+    return client
 
-    print("ddddd")
-    response.raise_for_status()
+# socket
+client = connect_to_server()
 
+def send_message(message):
+    client.send(message.encode('utf-8'))
+    print("Message sent successfully!")
+
+
+def register():
+        mac_address = get_mac_address()
+        print("MAC address:", mac_address)
+        send_message(mac_address + "resgiter")
+
+
+def send():
+    try:
+        while True:
+            message = input("Enter message: ")
+            send_message(message)
+
+    except OSError:
+        pass
+
+    print("Disconnected")
+    client.close()
 
 
 
@@ -41,9 +64,9 @@ def index():
 @app.route("/move/<id>")
 def move(id):
     try:
-        print("TODO : send Move")
+        send_message(id)
     except:
-        print("Timeout")
+        print("Move Timeout")
 
     return redirect('/')
 
@@ -51,7 +74,7 @@ def move(id):
 @app.route("/picture/")
 def picture():
     try:
-        mqtt.publish("picture" + tankID, "*")
+        send_message("QR code")
     except:
         print("Timeout")
 
@@ -60,5 +83,6 @@ def picture():
 
 # run the app
 if __name__ == "__main__":
-    register_with_dispatcher()
+    register()
+    send()
     app.run(host='127.0.0.1', port=5000, debug=True)

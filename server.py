@@ -1,57 +1,78 @@
-from flask import Flask, request, jsonify
+import re
+import socket
 import threading
-from bluetooth import *
 
-app = Flask(__name__)
+# Dictionnaire pour mapper les adresses MAC des clients aux sockets correspondantes
+client_map = {}
 
-participants = []
-robots = {}
+# Dictionnaire pour mapper les contrôleurs aux robots
+controller_robot_map = {}
 
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.json
-    mac_address = data['mac_address']
-    if mac_address not in participants:
-        participants.append(mac_address)
-        return jsonify({"status": "registered", "participants": participants}), 200
+def handle_client(client_socket, client_addr):
+    try:
+        while True:
+            data = client_socket.recv(1024)
+            if not data:
+                break
+            print(f"Received from {client_addr}: {data.decode('utf-8')}")
+            if re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', data.decode('utf-8')):
+                # Vérifier si le message est au format d'une adresse MAC Bluetooth
+                handle_control_message(client_addr, data.decode('utf-8'))
+            else:
+                if client_addr in controller_robot_map:
+                    send_to_specific_robot(controller_robot_map[client_addr], data)
+    except OSError:
+        pass
+    print(f"Client {client_addr} disconnected")
+    del client_map[client_addr]  # Supprimer l'entrée du client du dictionnaire
+    client_socket.close()
+
+
+def handle_control_message(controller_addr, message):
+    # Si vous avez besoin de faire quelque chose spécifique avec les adresses MAC Bluetooth, ajoutez votre logique ici
+    
+    print(f"Received valid MAC address from controller {controller_addr}: {message}")
+    controller_robot_map[controller_addr]=message
+    if controller_addr in controller_robot_map:
+        print(f"Controller {controller_addr} is linked to Robot {controller_robot_map[controller_addr]}")
     else:
-        return jsonify({"status": "already registered"}), 400
+        print(f"Controller {controller_addr} is not linked to any robot")
 
-@app.route('/start', methods=['POST'])
-def start_race():
-    return jsonify({"status": "Race started"}), 200
-
-@app.route('/command/<mac_address>', methods=['POST'])
-def send_command(mac_address):
-    command = request.json['command']
-    if mac_address in robots:
-        robot_service_url = robots[mac_address]
-        response = requests.post(f"http://{robot_service_url}/execute", json={'command': command})
-        return jsonify({"status": "Command sent", "response": response.json()}), 200
+def send_to_specific_robot(controller_addr, message):
+    print('mappage',controller_robot_map)
+    if controller_addr in controller_robot_map:
+        robot_addr = controller_robot_map[controller_addr]
+        if robot_addr in client_map:
+            robot_socket = client_map[robot_addr]
+            try:
+                robot_socket.send(message)
+                print(f"Message sent to Robot {robot_addr}: {message}")
+            except OSError:
+                print(f"Failed to send message to Robot {robot_addr}")
     else:
-        return jsonify({"error": "Robot not found"}), 404
+        print(f"No robot linked to Controller {controller_addr}")
 
-def handle_robot_connection():
-    server_sock = BluetoothSocket(RFCOMM)
-    server_sock.bind(("", PORT_ANY))
-    server_sock.listen(1)
 
-    port = server_sock.getsockname()[1]
+def client_handler(server_socket):
+    try:
+        while True:
+            client_socket, addr = server_socket.accept()
+            print(f"Accepted connection from {addr}")
+            client_map[addr] = client_socket  # Ajouter l'adresse du client et le socket correspondant au dictionnaire
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+            client_thread.start()
+    except KeyboardInterrupt:
+        print("Server is shutting down")
 
-    uuid = "94f39d29-7d6d-437d-973b-fba39e49d4ee"
-    advertise_service(server_sock, "RobotServer",
-                      service_id=uuid,
-                      service_classes=[uuid, SERIAL_PORT_CLASS],
-                      profiles=[SERIAL_PORT_PROFILE])
+server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+server.bind(("00:e9:3a:68:c0:e8", 4))  # Utilisation de l'interface par défaut sur le canal 4
+server.listen(5)
 
-    print(f"Waiting for connection on RFCOMM channel {port}")
+print("Waiting for connections...")
 
-    while True:
-        client_sock, client_info = server_sock.accept()
-        mac_address = client_sock.recv(1024).decode('utf-8')
-        robots[mac_address] = client_info[0]
-        print(f"Robot {mac_address} connected from {client_info}")
-
-if __name__ == '__main__':
-    threading.Thread(target=handle_robot_connection).start()
-    app.run(host='0.0.0.0', port=5000)
+try:
+    client_handler(server)
+except KeyboardInterrupt:
+    print("Server is shutting down")
+finally:
+    server.close()
