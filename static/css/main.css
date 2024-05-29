@@ -1,0 +1,50 @@
+body {
+    font-family: Arial, sans-serif;
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+}
+
+div {
+    margin: 10px 50px 10px 50px;
+    display: inline-block;
+    text-align: center;
+    justify-content: center;
+
+}
+
+p {
+    display: inline-block;
+}
+
+#servo {
+    display: block;
+}
+
+#motor {
+    display: block;
+
+}
+
+#shoot {
+}
+
+#picture {
+}
+
+img {
+    width: 50px;
+    height: 50px;
+    /*border: 1px solid #333;*/
+}
+
+#container {
+    width: 100%;
+    margin: auto;
+}
+
+#affichage {
+
+}

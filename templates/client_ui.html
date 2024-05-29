@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block head %}
+    <title>Rasptank</title>
+{% endblock %}
+
+{% block body %}
+    <h1>Rasptank</h1>
+
+    <div id="container">
+        <div id="motor">
+            <p><img src="/static/ressources/electric-motor.png" alt="Example"></p>
+            <br>
+            <p><a href="/move/forward_left"><img src="/static/ressources/left.png" style="transform: rotate(60deg);" alt="Example"></a></p>
+            <p><a href="/move/forward_no"><img src="/static/ressources/left.png" style="transform: rotate(90deg);" alt="Example"></a></p>
+            <p><a href="/move/forward_right"><img src="/static/ressources/left.png" style="transform: rotate(120deg);" alt="Example"></a></p>
+            <br>
+            <p><a href="/move/no_left"><img src="/static/ressources/left.png" alt="Example"></a></p>
+            <p><a href="/move/no_right"><img src="/static/ressources/left.png" style="transform: rotate(180deg);" alt="Example"></a></p>
+            <br>
+            <p><a href="/move/backward_right"><img src="/static/ressources/left.png" style="transform: rotate(240deg);" alt="Example"></a></p>
+            <p><a href="/move/backward_no"><img src="/static/ressources/left.png" style="transform: rotate(270deg);" alt="Example"></a></p>
+            <p><a href="/move/backward_left"><img src="/static/ressources/left.png" style="transform: rotate(300deg);" alt="Example"></a></p>
+        </div>
+
+        <div id="shoot">
+            <p><a href="/shoot"><img src="/static/ressources/gun-target.png" alt="Example"></a></p>
+        </div>
+
+        <div id="picture">
+            <p><a href="/picture"><img src="/static/ressources/photo-camera.png" alt="ar camera icons"></a></p>
+        </div>
+
+        <div>
+            <p><img src="/static/ressources/id.png" alt="Example">  {{ rasptank_ID }}</p>
+        </div>
+        <div>
+            <p><img src="/static/ressources/qr-code.png" alt="Example">    {{ qrcode }}</p>
+        </div>
+
+        <div id="affichage">
+            <p> <img src="/static/ressources/info.png" alt="Example">    {{ affichage }}</p>
+        </div>
+
+        {% if team == 'BLUE' %}
+            <img src="/static/ressources/blue.png" alt="Example">
+        {% elif team == 'RED' %}
+            <img src="/static/ressources/red.png" alt="Example">
+        {% endif %}
+
+    </div>
+{% endblock %}
