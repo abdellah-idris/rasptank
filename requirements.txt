@@ -1,7 +1,5 @@
 flask
-paho-mqtt
 Adafruit-PCA9685
-opencv-python
 numpy
-Flask-MQTT
 opencv-python
+requests
