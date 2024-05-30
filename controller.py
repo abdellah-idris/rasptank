@@ -4,6 +4,8 @@ import uuid
 import requests
 import re
 
+from common import MY_ROBOT_ADDRESS, SERVER_BLE_ADDRESS
+
 tankID = None
 team = ""
 qrcode = ""
@@ -15,7 +17,7 @@ app = Flask(__name__)
 def connect_to_server():
     print("Connecting to server...")
     client = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    client.connect(("00:e9:3a:68:c0:e8", 4))
+    client.connect((SERVER_BLE_ADDRESS, 4))
     print("Connected to server!")
     return client
 
@@ -30,7 +32,7 @@ def send_message(message):
 
 
 def register():
-    send_message("D4:MB:81:3A:8E:16")
+    send_message(MY_ROBOT_ADDRESS)
 
 
 def send():
