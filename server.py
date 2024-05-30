@@ -47,6 +47,12 @@ def auth(address, client_socket):
             print(f"nb_robot = {nb_robot}")
 
         else:
+
+            address_robot = message # to delete :just for test
+            nb_robot += 1 # to delete :just for test
+
+            robot_socket_map[address] = client_socket
+            
             address_robot = message  # TODO : check with regex the BLE ADDRESS
             address_controller = address
             print(f"from controller {address_controller} associated to robot {address_robot}")
@@ -164,7 +170,12 @@ def race_handler():
 
     while not is_start_race:
         if nb_robot == nb_controller and nb_controller == NB_GROUP:
+            #send to controlers list of robots
             print("Start Race")
+            for c in controller_robot_map.keys():
+                print('list ' ,c)
+                send_message(c , str(list(controller_robot_map.keys())))
+           
             is_start_race = True
 
 
