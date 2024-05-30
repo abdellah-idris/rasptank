@@ -1,6 +1,7 @@
 import socket
 import threading
 
+from common import SERVER_BLE_ADDRESS
 
 # TODO :
 #   -   QR Code
@@ -14,7 +15,7 @@ controller_socket_map = {}
 robot_controller_map = {}
 
 
-def handle_client(client_socket, address):
+def auth(address, client_socket):
     global controller_robot_map, robot_socket_map
 
     while True:
@@ -38,7 +39,27 @@ def handle_client(client_socket, address):
             controller_robot_map[address] = address_robot  # message here is the robot address
             robot_controller_map[address_robot] = address  # message here is the robot address
 
-        break  # break fisrt while loop when f
+        break  # break loop
+
+
+def send_to_specific_robot(address_controller, address_robot, message):
+    global robot_socket_map
+    if address_robot in robot_socket_map:
+        sock = robot_socket_map[address_robot]
+        try:
+            sock.send(message.encode('utf-8'))
+            print(f"Message sent to Robot {address_robot}: {message}")
+        except OSError:
+            print(f"Failed to send message to Robot {address_robot}")
+    else:
+        print(f"No robot linked to Controller {address_controller}")
+
+
+def handle_client(client_socket, address):
+    global controller_robot_map, robot_socket_map
+
+    # Authentication
+    auth(address, client_socket)
 
     try:
         while True:
@@ -68,21 +89,7 @@ def handle_client(client_socket, address):
 
     finally:
         print(f"Client {address} disconnected")
-        # TODO : Supprimer l'entrée du client du dictionnaire associé
         client_socket.close()
-
-
-def send_to_specific_robot(address_controller, address_robot, message):
-    global robot_socket_map
-    if address_robot in robot_socket_map:
-        sock = robot_socket_map[address_robot]
-        try:
-            sock.send(message.encode('utf-8'))
-            print(f"Message sent to Robot {address_robot}: {message}")
-        except OSError:
-            print(f"Failed to send message to Robot {address_robot}")
-    else:
-        print(f"No robot linked to Controller {address_controller}")
 
 
 def client_handler(server_socket):
@@ -102,7 +109,7 @@ def client_handler(server_socket):
 
 if __name__ == "__main__":
     server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    server.bind(("00:e9:3a:68:c1:04", 4))  # Utilisation de l'interface par défaut sur le canal 4
+    server.bind((SERVER_BLE_ADDRESS, 4))  # Utilisation de l'interface par défaut sur le canal 4
     server.listen(20)  # upgrade number of waiting connection
 
     print("Server Launched \n Waiting for connections...")
