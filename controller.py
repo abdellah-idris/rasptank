@@ -4,20 +4,12 @@ import uuid
 import requests
 import re
 
-
 tankID = None
 team = ""
 qrcode = ""
 affichage = ""
 
 app = Flask(__name__)
-
-
-def get_mac_address():
-    mac = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
-    print ("my mac: " + mac)
-
-    return mac
 
 
 def connect_to_server():
@@ -27,8 +19,10 @@ def connect_to_server():
     print("Connected to server!")
     return client
 
+
 # socket
 client = connect_to_server()
+
 
 def send_message(message):
     client.send(message.encode('utf-8'))
@@ -36,9 +30,7 @@ def send_message(message):
 
 
 def register():
-        mac_address = get_mac_address()
-        print("MAC address:", mac_address)
-        send_message(mac_address + "resgiter")
+    send_message("D4:MB:81:3A:8E:16")
 
 
 def send():
@@ -54,8 +46,6 @@ def send():
     client.close()
 
 
-
-
 @app.route("/")
 def index():
     return render_template('client_ui.html', rasptank_ID=tankID, team=team, qrcode=qrcode, affichage=affichage)
@@ -64,6 +54,7 @@ def index():
 @app.route("/move/<id>")
 def move(id):
     try:
+        print(id)
         send_message(id)
     except:
         print("Move Timeout")
@@ -71,18 +62,20 @@ def move(id):
     return redirect('/')
 
 
-@app.route("/picture/")
+@app.route("/qr-code/")
 def picture():
     try:
-        send_message("QR code")
-    except:
+        print("qr scanned")
+        send_message("QR code scanned")
+
+    except :
         print("Timeout")
 
     return redirect('/')
 
 
-# run the app
+# run  the app
 if __name__ == "__main__":
-    register()
-    send()
+    register()  # register with the server
+    send()  # just for test
     app.run(host='127.0.0.1', port=5000, debug=True)

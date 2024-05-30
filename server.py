@@ -1,78 +1,115 @@
-import re
 import socket
 import threading
 
-# Dictionnaire pour mapper les adresses MAC des clients aux sockets correspondantes
-client_map = {}
+
+# TODO :
+#   -   QR Code
+#   -   Race Monitoring
+
 
 # Dictionnaire pour mapper les contrôleurs aux robots
 controller_robot_map = {}
+robot_socket_map = {}
+controller_socket_map = {}
+robot_controller_map = {}
 
-def handle_client(client_socket, client_addr):
+
+def handle_client(client_socket, address):
+    global controller_robot_map, robot_socket_map
+
+    while True:
+        data = client_socket.recv(1024)
+        if not data:
+            client_socket.send("Authentication failed...Please reconnect")
+            break
+
+        message = data.decode('utf8')
+
+        if message == "robot":
+            # add address to
+            print(f"From robot {address}")
+            robot_socket_map[address] = client_socket
+
+        else:
+            address_robot = message
+            print(f"from controller {address} associated to robot {address_robot}")
+
+            controller_socket_map[address] = client_socket
+            controller_robot_map[address] = address_robot  # message here is the robot address
+            robot_controller_map[address_robot] = address  # message here is the robot address
+
+        break  # break fisrt while loop when f
+
     try:
         while True:
             data = client_socket.recv(1024)
             if not data:
                 break
-            print(f"Received from {client_addr}: {data.decode('utf-8')}")
-            if re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', data.decode('utf-8')):
-                # Vérifier si le message est au format d'une adresse MAC Bluetooth
-                handle_control_message(client_addr, data.decode('utf-8'))
-            else:
-                if client_addr in controller_robot_map:
-                    send_to_specific_robot(controller_robot_map[client_addr], data)
+
+            message = data.decode('utf-8')
+
+            print(f"Received from {address}: {message}")
+
+            # message from controller
+            if address in controller_robot_map:
+                #  TODO : logic when we receive from controller
+                # redirect to the robot
+                address_robot = controller_robot_map[address]
+                print(f"From controller {address} To robot {address_robot} Message :{message} ")
+                send_to_specific_robot(address, address_robot, message)
+
+            elif address in robot_controller_map:
+                # TODO : logic when we receive from robot
+                address_controller = robot_controller_map[address]
+                print(f"Received from robot {address} To controller {address_controller} Message : {message}")
+
     except OSError:
-        pass
-    print(f"Client {client_addr} disconnected")
-    del client_map[client_addr]  # Supprimer l'entrée du client du dictionnaire
-    client_socket.close()
+        print("OSError")
+
+    finally:
+        print(f"Client {address} disconnected")
+        # TODO : Supprimer l'entrée du client du dictionnaire associé
+        client_socket.close()
 
 
-def handle_control_message(controller_addr, message):
-    # Si vous avez besoin de faire quelque chose spécifique avec les adresses MAC Bluetooth, ajoutez votre logique ici
-    
-    print(f"Received valid MAC address from controller {controller_addr}: {message}")
-    controller_robot_map[controller_addr]=message
-    if controller_addr in controller_robot_map:
-        print(f"Controller {controller_addr} is linked to Robot {controller_robot_map[controller_addr]}")
+def send_to_specific_robot(address_controller, address_robot, message):
+    global robot_socket_map
+    if address_robot in robot_socket_map:
+        sock = robot_socket_map[address_robot]
+        try:
+            sock.send(message.encode('utf-8'))
+            print(f"Message sent to Robot {address_robot}: {message}")
+        except OSError:
+            print(f"Failed to send message to Robot {address_robot}")
     else:
-        print(f"Controller {controller_addr} is not linked to any robot")
-
-def send_to_specific_robot(controller_addr, message):
-    print('mappage',controller_robot_map)
-    if controller_addr in controller_robot_map:
-        robot_addr = controller_robot_map[controller_addr]
-        if robot_addr in client_map:
-            robot_socket = client_map[robot_addr]
-            try:
-                robot_socket.send(message)
-                print(f"Message sent to Robot {robot_addr}: {message}")
-            except OSError:
-                print(f"Failed to send message to Robot {robot_addr}")
-    else:
-        print(f"No robot linked to Controller {controller_addr}")
+        print(f"No robot linked to Controller {address_controller}")
 
 
 def client_handler(server_socket):
     try:
         while True:
             client_socket, addr = server_socket.accept()
-            print(f"Accepted connection from {addr}")
-            client_map[addr] = client_socket  # Ajouter l'adresse du client et le socket correspondant au dictionnaire
-            client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+            address = addr[0]
+
+            print(f"Accepted connection from {address}")
+
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
             client_thread.start()
+
     except KeyboardInterrupt:
         print("Server is shutting down")
 
-server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-server.bind(("00:e9:3a:68:c0:e8", 4))  # Utilisation de l'interface par défaut sur le canal 4
-server.listen(5)
 
-print("Waiting for connections...")
+if __name__ == "__main__":
+    server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+    server.bind(("00:e9:3a:68:c1:04", 4))  # Utilisation de l'interface par défaut sur le canal 4
+    server.listen(20)  # upgrade number of waiting connection
 
-try:
-    client_handler(server)
-except KeyboardInterrupt:
-    print("Server is shutting down")
-finally:
-    server.close()
+    print("Server Launched \n Waiting for connections...")
+
+    try:
+        client_handler(server)
+    except KeyboardInterrupt:
+        print("Server is shutting down")
+    finally:
+        server.close()
