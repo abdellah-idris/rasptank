@@ -1,18 +1,16 @@
 import socket
 import threading
+import random
+import time
 
 from common import SERVER_BLE_ADDRESS
 from mapping import CONTROLLER_ROBOT
 
-# TODO :
-#   -   Race Monitoring : QR Code
-#   -   Stop : See teacher description : alternative, server stop a robot directly
-#   -   Add a lock to nb_robot and nb_controller
-
-
+# Constants
 NB_GROUP = 5
 NB_LAPS = 2
 
+# Global variables
 is_start_race = False
 
 nb_robot_lock = threading.Lock()
@@ -21,16 +19,20 @@ nb_controller_lock = threading.Lock()
 nb_robot = 0
 nb_controller = 0
 
-# race tracker
+# Trackers and maps
 race_tracker = {}
-
-# Dictionnaire pour mapper les contrôleurs aux robots
 controller_robot_map = CONTROLLER_ROBOT
 robot_socket_map = {}
 controller_socket_map = {}
 robot_controller_map = {}
+blocked_robots = {}  # To track blocked robots and unblock time
 
 
+time_block = 2
+time_choice = time_block+2
+
+
+# Send message to a specific robot
 def send_to_specific_robot(address_controller, address_robot, message):
     global robot_socket_map
     if address_robot in robot_socket_map:
@@ -44,8 +46,9 @@ def send_to_specific_robot(address_controller, address_robot, message):
         print(f"No robot linked to Controller {address_controller}")
 
 
+# Send message to a robot or controller
 def send_message(address, message):
-    global robot_socket_map
+    global robot_socket_map, controller_socket_map
     if address in robot_socket_map:
         sock = robot_socket_map[address]
         try:
@@ -60,11 +63,12 @@ def send_message(address, message):
             sock.send(message.encode('utf-8'))
             print(f"Message sent to Controller {address}: {message}")
         except OSError:
-            print(f"Failed to send message to Robot {address}")
+            print(f"Failed to send message to Controller {address}")
     else:
         print(f"Address {address} not identifiable")
 
 
+# Handle client connection
 def handle_client(client_socket, address):
     global controller_robot_map, robot_socket_map, is_start_race, nb_robot, nb_controller
 
@@ -78,7 +82,6 @@ def handle_client(client_socket, address):
 
             print(f"Received from {address}: {message}")
 
-            # message from controller
             if address in controller_robot_map:
                 #  TODO : logic when we receive from controller
                 # redirect to the robot
@@ -118,13 +121,13 @@ def handle_client(client_socket, address):
 
         client_socket.close()
 
-
+# Client handler function
 def client_handler(server_socket):
     global nb_controller, nb_robot, is_start_race
     try:
         while True:
             client_socket, addr = server_socket.accept()
-            
+
             address = addr[0]
 
             if address in controller_robot_map:
@@ -152,26 +155,55 @@ def client_handler(server_socket):
     except KeyboardInterrupt:
         print("Server is shutting down")
 
-
+# Race handler function
 def race_handler():
     global is_start_race, nb_robot, nb_controller, NB_GROUP
 
     while not is_start_race:
-        if nb_robot == nb_controller and nb_controller == NB_GROUP:           
+        if nb_robot == nb_controller and nb_controller == NB_GROUP:
             is_start_race = True
-            for adress in robot_socket_map.keys():
-                send_message(robot_socket_map, "start".encode('utf-8'))
+            for address in robot_socket_map.keys():
+                send_message(address, "start")
+
+
+# Select and block a random robot
+def block_random_robot():
+    global blocked_robots, robot_socket_map
+
+    robots = list(robot_socket_map.keys())
+    if not robots:
+        print("BLock method: No robots connected.")
+        return
+
+    # available_robots = [robot for robot in robots if robot not in blocked_robots]
+    # if not available_robots:
+    #     print("All robots are currently blocked.")
+    #     return
+
+    chosen_robot = random.choice(robots)
+    blocked_robots[chosen_robot] = time.time() + time_block
+    send_message(chosen_robot, "BLOCK")
+    print(f"Robot {chosen_robot} is blocked for ",time_block," seconds.")
+
+# Block handler function
+def block_handler():
+    while True:
+        block_random_robot()
+        time.sleep(time_choice)  # Wait 5 seconds of blocking time + 3 seconds
 
 
 if __name__ == "__main__":
     server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    server.bind((SERVER_BLE_ADDRESS, 4))  # Utilisation de l'interface par défaut sur le canal 4
-    server.listen(20)  # upgrade number of waiting connection
+    server.bind((SERVER_BLE_ADDRESS, 4))
+    server.listen(20)
 
     print("Server Launched \n Waiting for connections...")
 
     race_thread = threading.Thread(target=race_handler, args=())
     race_thread.start()
+
+    block_thread = threading.Thread(target=block_handler, args=())
+    block_thread.start()
 
     try:
         print("Start Server")
