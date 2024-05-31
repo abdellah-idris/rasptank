@@ -12,7 +12,7 @@ from mapping import CONTROLLER_ROBOT, ROBOT_CONTROLLER
 #   -   Add a lock to nb_robot and nb_controller
 
 
-NB_GROUP = 1
+NB_GROUP = 5
 NB_LAPS = 2
 
 # Global variables
