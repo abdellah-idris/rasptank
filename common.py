@@ -1,1 +1,1 @@
-SERVER_BLE_ADDRESS = "00:e9:3a:68:c1:04"  # same for all participant
+SERVER_BLE_ADDRESS = "B8:27:EB:03:D5:68"  # same for all participant
