@@ -79,7 +79,7 @@ def send_message(address, message):
 
 # Handle client connection
 def handle_client(client_socket, address):
-    global controller_robot_map, robot_socket_map, is_start_race, nb_robot, nb_controller
+    global controller_robot_map, robot_socket_map, is_start_race, nb_robot, nb_controller, robot_controller_map
 
     try:
         while True:
