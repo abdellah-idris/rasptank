@@ -178,8 +178,9 @@ def race_handler():
     while not is_start_race:
         if nb_robot == nb_controller and nb_controller == NB_GROUP:
             is_start_race = True
-            for address in robot_socket_map.keys():
-                send_message(address, "start")
+            for address_robot, address_controller in robot_socket_map.items():
+                send_message(address_robot, "GO")
+                send_message(address_controller, "GO")
 
 
 # Select and block a random robot
