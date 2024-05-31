@@ -105,6 +105,7 @@ def handle_client(client_socket, address):
                 print(f"Received from robot {address} Message : {message}")
 
                 if "qr" in message.lower():
+                    print(f"Received QR")
                     try:
                         qr_data = message.split(":")
 
@@ -113,7 +114,7 @@ def handle_client(client_socket, address):
                         print(f"QR CODE Scanned : Robot {address} Completed {nb_lap}")
 
                     except Exception as e:
-                        print(f"An error occurred: {e}")
+                        print(f"QR CODE error occurred: {e}")
     except OSError:
         print("OSError")
 
@@ -177,7 +178,7 @@ def race_handler():
 
 # Select and block a random robot
 def block_random_robot():
-    global blocked_robots, robot_socket_map
+    global blocked_robots, robot_socket_map, is_start_race
 
     if is_start_race:
         robots = list(robot_socket_map.keys())
