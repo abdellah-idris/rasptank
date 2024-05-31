@@ -6,8 +6,13 @@ import time
 from common import SERVER_BLE_ADDRESS
 from mapping import CONTROLLER_ROBOT
 
-# Constants
-NB_GROUP = 5
+# TODO :
+#   -   Race Monitoring : QR Code
+#   -   Stop : See teacher description : alternative, server stop a robot directly
+#   -   Add a lock to nb_robot and nb_controller
+
+
+NB_GROUP = 1
 NB_LAPS = 2
 
 # Global variables
@@ -21,6 +26,8 @@ nb_controller = 0
 
 # Trackers and maps
 race_tracker = {}
+
+# Dictionnaire pour mapper les contrôleurs aux robots
 controller_robot_map = CONTROLLER_ROBOT
 robot_socket_map = {}
 controller_socket_map = {}
@@ -29,7 +36,7 @@ blocked_robots = {}  # To track blocked robots and unblock time
 
 
 time_block = 2
-time_choice = time_block+2
+time_choice = time_block+20
 
 
 # Send message to a specific robot
@@ -121,6 +128,7 @@ def handle_client(client_socket, address):
 
         client_socket.close()
 
+
 # Client handler function
 def client_handler(server_socket):
     global nb_controller, nb_robot, is_start_race
@@ -155,6 +163,7 @@ def client_handler(server_socket):
     except KeyboardInterrupt:
         print("Server is shutting down")
 
+
 # Race handler function
 def race_handler():
     global is_start_race, nb_robot, nb_controller, NB_GROUP
@@ -170,20 +179,22 @@ def race_handler():
 def block_random_robot():
     global blocked_robots, robot_socket_map
 
-    robots = list(robot_socket_map.keys())
-    if not robots:
-        print("BLock method: No robots connected.")
-        return
+    if is_start_race:
+        robots = list(robot_socket_map.keys())
+        if not robots:
+            print("BLock method: No robots connected.")
+            return
 
-    # available_robots = [robot for robot in robots if robot not in blocked_robots]
-    # if not available_robots:
-    #     print("All robots are currently blocked.")
-    #     return
+        # available_robots = [robot for robot in robots if robot not in blocked_robots]
+        # if not available_robots:
+        #     print("All robots are currently blocked.")
+        #     return
 
-    chosen_robot = random.choice(robots)
-    blocked_robots[chosen_robot] = time.time() + time_block
-    send_message(chosen_robot, "BLOCK")
-    print(f"Robot {chosen_robot} is blocked for ",time_block," seconds.")
+        chosen_robot = random.choice(robots)
+        blocked_robots[chosen_robot] = time.time() + time_block
+        send_message(chosen_robot, "BLOCK")
+        print(f"Robot {chosen_robot} is blocked for ",time_block," seconds.")
+
 
 # Block handler function
 def block_handler():
