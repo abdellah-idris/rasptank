@@ -38,6 +38,7 @@ blocked_robots = {}  # To track blocked robots and unblock time
 time_block = 2
 time_choice = time_block+20
 
+winners = []
 
 # Send message to a specific robot
 def send_to_specific_robot(address_controller, address_robot, message):
@@ -86,35 +87,33 @@ def handle_client(client_socket, address):
                 break
 
             message = data.decode('utf-8')
-
             print(f"Received from {address}: {message}")
 
             if address in controller_robot_map:
-                #  TODO : logic when we receive from controller
-                # redirect to the robot
                 address_robot = controller_robot_map[address]
-                print(f"From controller {address} To robot {address_robot} Message :{message} ")
+                print(f"From controller {address} To robot {address_robot} Message :{message}")
 
                 if is_start_race:
-                    send_to_specific_robot(address, address_robot, message) # send message to robot
+                    send_to_specific_robot(address, address_robot, message)
                 else:
-                    send_message(address_robot, "no_start")  # sent to robot, no_start
+                    send_message(address, "Race did not started yet")
 
-            else:  # message received from robot
-                # TODO : logic when we receive from robot
-                print(f"Received from robot {address} Message : {message}")
+            elif address in robot_controller_map:
+                send_message(robot_controller_map[address], "Robet has Scanned the qr")
+                address_controller = robot_controller_map[address]
+                race_tracker[address_robot] =race_tracker[address_robot]+1
+                print(f"Received from robot {address} To controller {address_controller} Message : {message}")
 
-                if "qr" in message.lower():
-                    print(f"Received QR")
-                    try:
-                        qr_data = message.split(":")
+                if (race_tracker[address_robot]==2):
+                    winners.append(address_robot)
+            if(len(winners)==NB_GROUP):
+                print("The END")
+                for i in range(0,len(winners)):
+                    if (i==0):
+                        send_message(winners[0], "You are the Winner")
+                    else:
+                        send_message(winners[i], "classified: ", i)
 
-                        race_tracker[address] = race_tracker[address]+1
-                        nb_lap = race_tracker[address]
-                        print(f"QR CODE Scanned : Robot {address} Completed {nb_lap}")
-
-                    except Exception as e:
-                        print(f"QR CODE error occurred: {e}")
     except OSError:
         print("OSError")
 
@@ -122,10 +121,10 @@ def handle_client(client_socket, address):
         print(f"Client {address} disconnected")
         if address in controller_robot_map or address in controller_socket_map:
             nb_controller -= 1
-            print(f"update controller count : nb_controller = {nb_controller}")
+            print(f"update controller count = nb_controller = {nb_controller}")
         else:
             nb_robot -= 1
-            print(f"update robot count : nb_robot = {nb_robot}")
+            print(f"update robot count = nb_robot = {nb_robot}")
 
         client_socket.close()
 
