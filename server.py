@@ -101,11 +101,14 @@ def handle_client(client_socket, address):
 
             else:  # message from robot
                 try:
-                    address_controller = robot_controller_map[address]
-                    race_tracker[address] = race_tracker[address]+1
-                    print(f"Received from robot {address} To controller {address_controller} Message : {message}")
+                    if "qr" not in message.lower():
+                        print(f"Received from robot {address} is not a qr   Message : {message}")
+                    else:
+                        address_controller = robot_controller_map[address]
+                        race_tracker[address] = race_tracker[address]+1
+                        print(f"Received from robot {address} To controller {address_controller} Message : {message}")
 
-                    send_message(address_controller, message.split(":")[1])
+                        send_message(address_controller, message.split(":")[1])
 
                     if (race_tracker[address]==2):
                         winners.append(address)
