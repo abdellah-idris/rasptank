@@ -121,6 +121,9 @@ def handle_client(client_socket, address):
                 for i in range(0,len(winners)):
                     if (i==0):
                         send_message(winners[0], "You are the Winner")
+                        controller = robot_controller_map[winners[0]]
+                        send_message(winners[0], "You are the Winner")
+                        send_message(controller, "You are the Winner")
                     else:
                         send_message(winners[i], "classified: ", i)
 
