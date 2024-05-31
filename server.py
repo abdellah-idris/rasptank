@@ -37,7 +37,7 @@ blocked_robots = {}  # To track blocked robots and unblock time
 
 
 time_block = 2
-time_choice = time_block+20
+time_choice = time_block+5
 
 winners = []
 
