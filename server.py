@@ -6,6 +6,7 @@ from common import SERVER_BLE_ADDRESS
 # TODO :
 #   -   Race Monitoring : QR Code
 #   -   Stop : See teacher description : alternative, server stop a robot directly
+#   -   Add a lock to nb_robot and nb_controller
 
 
 NB_GROUP = 1
@@ -47,10 +48,6 @@ def auth(address, client_socket):
             print(f"nb_robot = {nb_robot}")
 
         else:
-
-            address_robot = message # to delete :just for test
-            nb_robot += 1 # to delete :just for test
-
             robot_socket_map[address] = client_socket
             
             address_robot = message  # TODO : check with regex the BLE ADDRESS
@@ -169,14 +166,10 @@ def race_handler():
     global is_start_race, nb_robot, nb_controller, NB_GROUP
 
     while not is_start_race:
-        if nb_robot == nb_controller and nb_controller == NB_GROUP:
-            #send to controlers list of robots
-            print("Start Race")
-            for c in controller_robot_map.keys():
-                print('list ' ,c)
-                send_message(c , str(list(controller_robot_map.keys())))
-           
+        if nb_robot == nb_controller and nb_controller == NB_GROUP:           
             is_start_race = True
+            for adress in robot_socket_map.keys():
+                send_message(robot_socket_map, "start".encode('utf-8'))
 
 
 if __name__ == "__main__":

@@ -1,102 +1,187 @@
-import threading
-import time
-import random
-from flask import Flask, render_template, redirect, url_for
 import socket
-import ast
+import threading
 
-from common import MY_ROBOT_ADDRESS, SERVER_BLE_ADDRESS
+from common import SERVER_BLE_ADDRESS
 
-tankID = None
-team = ""
-qrcode = ""
-affichage = ""
-list_robots = []
-bonuses = {}
+# TODO :
+#   -   Race Monitoring : QR Code
+#   -   Stop : See teacher description : alternative, server stop a robot directly
 
-app = Flask(__name__)
 
-def receive():
-    global list_robots
-    print("Receiving thread started successfully.")
+NB_GROUP = 1
+NB_LAPS = 2
+
+is_start_race = False
+nb_robot = 0
+nb_controller = 0
+
+# race tracker
+race_tracker = {}
+
+# Dictionnaire pour mapper les contrôleurs aux robots
+controller_robot_map = {}
+robot_socket_map = {}
+controller_socket_map = {}
+robot_controller_map = {}
+
+
+def auth(address, client_socket):
+    global controller_robot_map, robot_socket_map, nb_robot, nb_controller, race_tracker
+
     while True:
-        data = client.recv(1024)
+        data = client_socket.recv(1024)
         if not data:
+            client_socket.send("Authentication failed...Please reconnect")
             break
-        message = data.decode('utf-8')
-        print("received", message)
-        list_robots = ast.literal_eval(message)
-        print("la liste des robots est", list_robots)
 
-def generate_bonus():
-    while True:
-        time.sleep(10)  # Attendre 10 secondes entre chaque bonus
-        if list_robots:
-            selected_robot = random.choice(list_robots)
-            if selected_robot not in bonuses or not bonuses[selected_robot]:
-                bonuses[selected_robot] = True  # Marquer le robot comme ayant un bonus
-                send_message(f"Bonus awarded to {selected_robot}")
-                print(f"Bonus awarded to {selected_robot}")
+        message = data.decode('utf8')
 
-def connect_to_server():
-    global client
-    print("Connecting to server...")
-    client = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    client.connect((SERVER_BLE_ADDRESS, 4))
-    print("Connected to server!")
-    
-    receive_thread = threading.Thread(target=receive)
-    receive_thread.start()
-    
-    bonus_thread = threading.Thread(target=generate_bonus)
-    bonus_thread.start()
+        if message.lower() == "robot":
+            # add address to
+            print(f"From robot {address}")
+            address_robot = address
+            robot_socket_map[address] = client_socket  # register robot with its socket
+            race_tracker[address_robot] = 0  # init race tracker to 0 for robot
 
-def send_message(message):
-    client.send(message.encode('utf-8'))
-    print("Message sent successfully!")
+            nb_robot += 1
+            print(f"nb_robot = {nb_robot}")
 
-def register():
-    send_message(MY_ROBOT_ADDRESS)
+        else:
+            address_robot = message  # TODO : check with regex the BLE ADDRESS
+            address_controller = address
+            print(f"from controller {address_controller} associated to robot {address_robot}")
 
-def send():
+            controller_socket_map[address_controller] = client_socket  # register controller socket
+            controller_robot_map[address_controller] = address_robot  # message here is the robot address
+            robot_controller_map[address_robot] = address_controller  # message here is the robot address
+
+            nb_controller += 1
+            print(f"nb_controller = {nb_controller}")
+
+        return
+
+
+def send_to_specific_robot(address_controller, address_robot, message):
+    global robot_socket_map
+    if address_robot in robot_socket_map:
+        sock = robot_socket_map[address_robot]
+        try:
+            sock.send(message.encode('utf-8'))
+            print(f"Message sent to Robot {address_robot}: {message}")
+        except OSError:
+            print(f"Failed to send message to Robot {address_robot}")
+    else:
+        print(f"No robot linked to Controller {address_controller}")
+
+
+def send_message(address, message):
+    global robot_socket_map
+    if address in robot_socket_map:
+        sock = robot_socket_map[address]
+        try:
+            sock.send(message.encode('utf-8'))
+            print(f"Message sent to Robot {address}: {message}")
+        except OSError:
+            print(f"Failed to send message to Robot {address}")
+    elif address in controller_socket_map:
+        sock = controller_socket_map[address]
+
+        try:
+            sock.send(message.encode('utf-8'))
+            print(f"Message sent to Controller {address}: {message}")
+        except OSError:
+            print(f"Failed to send message to Robot {address}")
+    else:
+        print(f"Address {address} not identifiable")
+
+
+def handle_client(client_socket, address):
+    global controller_robot_map, robot_socket_map, is_start_race, nb_robot, nb_controller
+
+    # Authentication
+    auth(address, client_socket)
+
     try:
         while True:
-            message = input("Enter message: ")
-            send_message(message)
+            data = client_socket.recv(1024)
+            if not data:
+                break
+
+            message = data.decode('utf-8')
+
+            print(f"Received from {address}: {message}")
+
+            # message from controller
+            if address in controller_robot_map:
+                #  TODO : logic when we receive from controller
+                # redirect to the robot
+                address_robot = controller_robot_map[address]
+                print(f"From controller {address} To robot {address_robot} Message :{message} ")
+
+                if is_start_race:
+                    send_to_specific_robot(address, address_robot, message)
+                else:
+                    send_message(address, "Race did not started yet")  # sent to controller
+
+            elif address in robot_controller_map:
+                # TODO : logic when we receive from robot
+                address_controller = robot_controller_map[address]
+                print(f"Received from robot {address} To controller {address_controller} Message : {message}")
+
     except OSError:
-        pass
-    print("Disconnected")
-    client.close()
+        print("OSError")
 
-@app.route("/")
-def index():
-    return render_template('client_ui.html', rasptank_ID=tankID, team=team, qrcode=qrcode, affichage=affichage)
+    finally:
+        print(f"Client {address} disconnected")
+        if address in controller_robot_map or address in controller_socket_map:
+            nb_controller -= 1
+            print(f"update controller count = nb_controller = {nb_controller}")
+        else:
+            nb_robot -= 1
+            print(f"update robot count = nb_robot = {nb_robot}")
 
-@app.route("/move/<id>")
-def move(id):
+        client_socket.close()
+
+
+def client_handler(server_socket):
+    global nb_controller, nb_robot, is_start_race
     try:
-        print(id)
-        send_message(id)
-    except:
-        print("Move Timeout")
-    return redirect('/')
+        while True:
+            client_socket, addr = server_socket.accept()
+            address = addr[0]
 
-@app.route("/qr-code/")
-def picture():
-    try:
-        print("qr scanned")
-        send_message("QR code scanned")
-    except:
-        print("Timeout")
-    return redirect('/')
+            print(f"Accepted connection from {address}")
+
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
+            client_thread.start()
+
+    except KeyboardInterrupt:
+        print("Server is shutting down")
+
+
+def race_handler():
+    global is_start_race, nb_robot, nb_controller, NB_GROUP
+
+    while not is_start_race:
+        if nb_robot == nb_controller and nb_controller == NB_GROUP:
+            print("Start Race")
+            is_start_race = True
+
 
 if __name__ == "__main__":
-    connect_to_server()
-    register()  # Register with the server
+    server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+    server.bind((SERVER_BLE_ADDRESS, 4))  # Utilisation de l'interface par défaut sur le canal 4
+    server.listen(20)  # upgrade number of waiting connection
 
-    # Démarrer le thread pour envoyer des messages (juste pour test)
-    send_thread = threading.Thread(target=send)
-    send_thread.start()
-    
-    # Démarrer le serveur Flask
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    print("Server Launched \n Waiting for connections...")
+
+    race_thread = threading.Thread(target=race_handler, args=())
+    race_thread.start()
+
+    try:
+        print("Start Server")
+        client_handler(server)
+    except KeyboardInterrupt:
+        print("Server is shutting down")
+    finally:
+        server.close()
