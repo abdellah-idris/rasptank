@@ -100,17 +100,18 @@ def handle_client(client_socket, address):
                     send_message(address, "Race did not started yet")
 
             else:  # message from robot
-                address_controller = robot_controller_map[address]
-                race_tracker[address_robot] = race_tracker[address_robot]+1
-                print(f"Received from robot {address} To controller {address_controller} Message : {message}")
-
                 try:
+                    address_controller = robot_controller_map[address]
+                    race_tracker[address_robot] = race_tracker[address_robot]+1
+                    print(f"Received from robot {address} To controller {address_controller} Message : {message}")
+
                     send_message(address_controller, message.split(":")[1])
+
+                    if (race_tracker[address_robot]==2):
+                        winners.append(address_robot)
+
                 except Exception as e:
                     print(f"Error when Send QR to controller. Error {e} ")
-
-                if (race_tracker[address_robot]==2):
-                    winners.append(address_robot)
 
             if(len(winners)==NB_GROUP):
                 print("The END")
