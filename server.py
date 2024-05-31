@@ -4,40 +4,61 @@ import random
 import time
 
 from common import SERVER_BLE_ADDRESS
-from mapping import CONTROLLER_ROBOT
 
-# TODO :
-#   -   Race Monitoring : QR Code
-#   -   Stop : See teacher description : alternative, server stop a robot directly
-#   -   Add a lock to nb_robot and nb_controller
-
-
+# Constants
 NB_GROUP = 1
 NB_LAPS = 2
 
 # Global variables
 is_start_race = False
-
-nb_robot_lock = threading.Lock()
-nb_controller_lock = threading.Lock()
-
 nb_robot = 0
 nb_controller = 0
 
 # Trackers and maps
 race_tracker = {}
-
-# Dictionnaire pour mapper les contrôleurs aux robots
-controller_robot_map = CONTROLLER_ROBOT
+controller_robot_map = {}
 robot_socket_map = {}
 controller_socket_map = {}
 robot_controller_map = {}
 blocked_robots = {}  # To track blocked robots and unblock time
-
+winners=[]
 
 time_block = 2
-time_choice = time_block+20
+time_choice = time_block+2
+# Authentication function
+def auth(address, client_socket):
+    global controller_robot_map, robot_socket_map, nb_robot, nb_controller, race_tracker
 
+    while True:
+        data = client_socket.recv(1024)
+        if not data:
+            client_socket.send("Authentication failed...Please reconnect".encode('utf-8'))
+            break
+
+        message = data.decode('utf8')
+
+        if message.lower() == "robot":
+            print(f"From robot {address}")
+            address_robot = address
+            robot_socket_map[address] = client_socket
+            race_tracker[address_robot] = 0  # Init race tracker for the robot
+
+            nb_robot += 1
+            print(f"nb_robot = {nb_robot}")
+
+        else:
+            address_robot = message
+            address_controller = address
+            print(f"from controller {address_controller} associated to robot {address_robot}")
+
+            controller_socket_map[address_controller] = client_socket
+            controller_robot_map[address_controller] = address_robot
+            robot_controller_map[address_robot] = address_controller
+
+            nb_controller += 1
+            print(f"nb_controller = {nb_controller}")
+
+        return
 
 # Send message to a specific robot
 def send_to_specific_robot(address_controller, address_robot, message):
@@ -52,7 +73,6 @@ def send_to_specific_robot(address_controller, address_robot, message):
     else:
         print(f"No robot linked to Controller {address_controller}")
 
-
 # Send message to a robot or controller
 def send_message(address, message):
     global robot_socket_map, controller_socket_map
@@ -65,7 +85,6 @@ def send_message(address, message):
             print(f"Failed to send message to Robot {address}")
     elif address in controller_socket_map:
         sock = controller_socket_map[address]
-
         try:
             sock.send(message.encode('utf-8'))
             print(f"Message sent to Controller {address}: {message}")
@@ -74,10 +93,11 @@ def send_message(address, message):
     else:
         print(f"Address {address} not identifiable")
 
-
 # Handle client connection
 def handle_client(client_socket, address):
     global controller_robot_map, robot_socket_map, is_start_race, nb_robot, nb_controller
+
+    auth(address, client_socket)
 
     try:
         while True:
@@ -86,35 +106,33 @@ def handle_client(client_socket, address):
                 break
 
             message = data.decode('utf-8')
-
             print(f"Received from {address}: {message}")
 
             if address in controller_robot_map:
-                #  TODO : logic when we receive from controller
-                # redirect to the robot
                 address_robot = controller_robot_map[address]
-                print(f"From controller {address} To robot {address_robot} Message :{message} ")
+                print(f"From controller {address} To robot {address_robot} Message :{message}")
 
                 if is_start_race:
-                    send_to_specific_robot(address, address_robot, message) # send message to robot
+                    send_to_specific_robot(address, address_robot, message)
                 else:
-                    send_message(address_robot, "no_start")  # sent to robot, no_start
+                    send_message(address, "Race did not started yet")
 
-            else:  # message received from robot
-                # TODO : logic when we receive from robot
-                print(f"Received from robot {address} Message : {message}")
+            elif address in robot_controller_map:
+                send_message(robot_controller_map[address], "Robet has Scanned the qr")
+                address_controller = robot_controller_map[address]
+                race_tracker[address_robot] =race_tracker[address_robot]+1
+                print(f"Received from robot {address} To controller {address_controller} Message : {message}")
 
-                if "qr" in message.lower():
-                    print(f"Received QR")
-                    try:
-                        qr_data = message.split(":")
+                if (race_tracker[address_robot]==2):
+                    winners.append(address_robot)
+            if(len(winners)==NB_GROUP):
+                print("The END")
+                for i in range(0,len(winners)):
+                    if (i==0):
+                        send_message(winners[0], "You are the Winner")
+                    else:
+                        send_message(winners[i], "classified: ", i)
 
-                        race_tracker[address] = race_tracker[address]+1
-                        nb_lap = race_tracker[address]
-                        print(f"QR CODE Scanned : Robot {address} Completed {nb_lap}")
-
-                    except Exception as e:
-                        print(f"QR CODE error occurred: {e}")
     except OSError:
         print("OSError")
 
@@ -122,13 +140,12 @@ def handle_client(client_socket, address):
         print(f"Client {address} disconnected")
         if address in controller_robot_map or address in controller_socket_map:
             nb_controller -= 1
-            print(f"update controller count : nb_controller = {nb_controller}")
+            print(f"update controller count = nb_controller = {nb_controller}")
         else:
             nb_robot -= 1
-            print(f"update robot count : nb_robot = {nb_robot}")
+            print(f"update robot count = nb_robot = {nb_robot}")
 
         client_socket.close()
-
 
 # Client handler function
 def client_handler(server_socket):
@@ -136,34 +153,15 @@ def client_handler(server_socket):
     try:
         while True:
             client_socket, addr = server_socket.accept()
-
             address = addr[0]
 
-            if address in controller_robot_map:
-                print(f"Accepted connection from CONTROLLER  {address}")
+            print(f"Accepted connection from {address}")
 
-                controller_socket_map[address] = client_socket
-
-                with nb_controller_lock:
-                    nb_controller += 1
-                    print(f"nb_controller = {nb_controller}")
-            else:
-                print(f"Accepted connection from ROBOT {address}")
-
-                robot_socket_map[address] = client_socket
-                race_tracker[address] = 0  # init race tracker to 0 for robot
-
-                with nb_robot_lock:
-                    nb_robot += 1
-                    print(f"nb_robot = {nb_robot}")
-
-            # start the thread
             client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
             client_thread.start()
 
     except KeyboardInterrupt:
         print("Server is shutting down")
-
 
 # Race handler function
 def race_handler():
@@ -175,34 +173,30 @@ def race_handler():
             for address in robot_socket_map.keys():
                 send_message(address, "start")
 
-
 # Select and block a random robot
 def block_random_robot():
-    global blocked_robots, robot_socket_map, is_start_race
+    global blocked_robots, robot_socket_map
 
-    if is_start_race:
-        robots = list(robot_socket_map.keys())
-        if not robots:
-            print("BLock method: No robots connected.")
-            return
+    robots = list(robot_socket_map.keys())
+    if not robots:
+        print("No robots connected.")
+        return
 
-        # available_robots = [robot for robot in robots if robot not in blocked_robots]
-        # if not available_robots:
-        #     print("All robots are currently blocked.")
-        #     return
+    # available_robots = [robot for robot in robots if robot not in blocked_robots]
+    # if not available_robots:
+    #     print("All robots are currently blocked.")
+    #     return
 
-        chosen_robot = random.choice(robots)
-        blocked_robots[chosen_robot] = time.time() + time_block
-        send_message(chosen_robot, "BLOCK")
-        print(f"Robot {chosen_robot} is blocked for ",time_block," seconds.")
-
+    chosen_robot = random.choice(robots)
+    blocked_robots[chosen_robot] = time.time() + time_block
+    send_message(chosen_robot, "BLOCK")
+    print(f"Robot {chosen_robot} is blocked for ",time_block," seconds.")
 
 # Block handler function
 def block_handler():
     while True:
         block_random_robot()
         time.sleep(time_choice)  # Wait 5 seconds of blocking time + 3 seconds
-
 
 if __name__ == "__main__":
     server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
