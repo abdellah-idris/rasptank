@@ -4,7 +4,7 @@ import random
 import time
 
 from common import SERVER_BLE_ADDRESS
-from mapping import CONTROLLER_ROBOT
+from mapping import CONTROLLER_ROBOT, ROBOT_CONTROLLER
 
 # TODO :
 #   -   Race Monitoring : QR Code
@@ -29,9 +29,10 @@ race_tracker = {}
 
 # Dictionnaire pour mapper les contrôleurs aux robots
 controller_robot_map = CONTROLLER_ROBOT
+robot_controller_map = ROBOT_CONTROLLER
+
 robot_socket_map = {}
 controller_socket_map = {}
-robot_controller_map = {}
 blocked_robots = {}  # To track blocked robots and unblock time
 
 
@@ -99,7 +100,6 @@ def handle_client(client_socket, address):
                     send_message(address, "Race did not started yet")
 
             else:  # message from robot
-                send_message(robot_controller_map[address], "Robot has Scanned the qr")
                 address_controller = robot_controller_map[address]
                 race_tracker[address_robot] = race_tracker[address_robot]+1
                 print(f"Received from robot {address} To controller {address_controller} Message : {message}")
