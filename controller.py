@@ -1,10 +1,7 @@
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect
 import socket
-import uuid
-import requests
-import re
 
-from common import MY_ROBOT_ADDRESS, SERVER_BLE_ADDRESS
+from common import SERVER_BLE_ADDRESS
 
 tankID = None
 team = ""
@@ -29,10 +26,6 @@ client = connect_to_server()
 def send_message(message):
     client.send(message.encode('utf-8'))
     print("Message sent successfully!")
-
-
-def register():
-    send_message(MY_ROBOT_ADDRESS)
 
 
 def send():
@@ -78,6 +71,5 @@ def picture():
 
 # run  the app
 if __name__ == "__main__":
-    register()  # register with the server
     send()  # just for test
     app.run(host='127.0.0.1', port=5000, debug=True)
